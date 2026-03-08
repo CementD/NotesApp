@@ -1,215 +1,239 @@
-import { NoteItem } from "@/components/NoteItem";
-import { Title } from "@/components/Title";
-import { useEffect, useState } from "react";
+import { createHomeStyles } from "@/assets/styles/home.styles";
+import EmptyState from "@/components/EmptyState";
+import Header from "@/components/Header";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import TodoInput from "@/components/TodoInput";
+import { Doc, Id } from "@/convex/_generated/dataModel";
+import { api } from "@/convex/_generated/api";
+import { useQuery, useMutation } from "convex/react";
+import useTheme from "@/hooks/useTheme";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useState } from "react";
 import {
   FlatList,
-  View,
-  StyleSheet,
+  Text,
   TextInput,
   TouchableOpacity,
-  Text,
-  Alert,
+  View,
+  Alert
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import useTheme, { ColorScheme } from "@/hooks/useTheme";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import Animated, { FadeInDown, FadeOutUp, LinearTransition } from "react-native-reanimated";
 
-interface Note {
-  userId: number;
-  id: number;
-  title: string;
-  completed: boolean;
-  createdAt: number;
-}
+type Todo = Doc<"notes">;
 
-export default function NotesScreen() {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [text, setText] = useState<string>("");
-  const [sortType, setSortType] = useState<"date" | "alphabet">("date");
-  const [isAscending, setIsAscending] = useState<boolean>(true);
+export default function Index() {
+
   const { colors } = useTheme();
-  const styles = createStyles(colors);
+  const homeStyles = createHomeStyles(colors);
 
-  useEffect(() => {
-    const loadNotes = async () => {
-      try {
-        const storedNotes = await AsyncStorage.getItem("notes");
-        if (storedNotes) {
-          setNotes(JSON.parse(storedNotes));
-        }
-      } catch (error) {
-        console.error("Error loading notes:", error);
-      }
-    };
+  const [editingId, setEditingId] = useState<Id<"notes"> | null>(null);
+  const [editText, setEditText] = useState("");
 
-    loadNotes();    
-  }, []); 
+  const todos = useQuery(api.notes.getNotes);
 
-  const addNote = async () => {
-    if (!text.trim()) return;
+  const isLoading = todos === undefined;
 
-    const newNote = {
-      userId: 1,
-      id: Date.now(),
-      title: text,
-      completed: false,
-      createdAt: Date.now(),
-    };
+  const deleteTodo = useMutation(api.notes.deleteNote);
 
+  const updateTodo = useMutation(api.notes.updateNote);
+
+  const toggleTodo = useMutation(api.notes.toggleNote);
+
+  if (isLoading) return <LoadingSpinner />;
+
+  const handleToggleTodo = async (id: Id<"notes">) => {
     try {
-      const updatedNotes = [newNote, ...notes];
-      setNotes(updatedNotes);
-      setText("");
-      await AsyncStorage.setItem("notes", JSON.stringify(updatedNotes));
+      await toggleTodo({ id });
     } catch (error) {
-      console.error("Error adding note:", error);
+      console.log("Error toggling todo", error);
     }
   };
 
-  const deleteNote = async (id: number) => {
-    Alert.alert("Delete Note", "Are you sure you want to delete this note?", [
-      { text: "Cancel", style: "cancel" },
+  const handleDeleteTodo = async (id: Id<"notes">) => {
+    Alert.alert("Delete Todo", "Are you sure you want to delete this todo?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
       {
         text: "Delete",
         style: "destructive",
         onPress: async () => {
           try {
-            const updatedNotes = notes.filter((note) => note.id !== id);
-            setNotes(updatedNotes);
-            await AsyncStorage.setItem("notes", JSON.stringify(updatedNotes));
+            await deleteTodo({ id });
           } catch (error) {
-            console.error("Error deleting note:", error);
+            console.log("Error deleting todo", error);
           }
         },
       },
     ]);
   };
 
-  const editNote = async (id: number, newTitle: string) => {
-    try {
-      const updatedNotes = notes.map((note) =>
-        note.id === id ? { ...note, title: newTitle } : note
-      );
-      setNotes(updatedNotes);
-      await AsyncStorage.setItem("notes", JSON.stringify(updatedNotes));
-    } catch (error) {
-      console.error("Error editing note:", error);
+  const handleEditTodo = (todo: Todo) => {
+    setEditText(todo.text);
+    setEditingId(todo._id);
+  };
+
+  const handleSaveEdit = async () => {
+    if (editingId && editText.trim()) {
+      try {
+        await updateTodo({ id: editingId, text: editText.trim() });
+        setEditingId(null);
+        setEditText("");
+      } catch (error) {
+        console.log("Error updating todo", error);
+      }
     }
   };
 
-  const sortedNotes = () => {
-    const sorted = [...notes]
-    if (sortType === "alphabet") {
-      if (isAscending) {
-        sorted.sort((a, b) => a.title.localeCompare(b.title));
-      } else {
-        sorted.sort((a, b) => b.title.localeCompare(a.title));
-      }
-    } else {
-      if (isAscending) {
-        sorted.sort((a, b) => a.createdAt - b.createdAt);
-      } else {
-        sorted.sort((a, b) => b.createdAt - a.createdAt);
-      }
-    }
-    return sorted;
-  }
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditText("");
+  };
+
+  const renderTodoItem = ({ item }: { item: Todo }) => {
+    const isEditing = editingId === item._id;
+    return (
+      <Animated.View 
+        style={homeStyles.todoItemWrapper}
+        entering={FadeInDown.duration(300)}
+        exiting={FadeOutUp.duration(200)}
+        layout={LinearTransition.springify().duration(300)}
+      >
+        <LinearGradient
+          colors={colors.gradients.surface}
+          style={homeStyles.todoItem}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <TouchableOpacity
+            style={homeStyles.checkbox}
+            activeOpacity={0.7}
+            onPress={() => handleToggleTodo(item._id)}
+          >
+            <LinearGradient
+              colors={
+                item.isComplete
+                  ? colors.gradients.success
+                  : colors.gradients.muted
+              }
+              style={[
+                homeStyles.checkboxInner,
+                {
+                  borderColor: item.isComplete ? "transparent" : colors.border,
+                },
+              ]}
+            >
+              {item.isComplete && (
+                <Ionicons name="checkmark" size={18} color="#fff" />
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+
+          {isEditing ? (
+            <View style={homeStyles.editContainer}>
+              <TextInput
+                style={homeStyles.editInput}
+                value={editText}
+                onChangeText={setEditText}
+                autoFocus
+                multiline
+                placeholder="Edit your todo..."
+                placeholderTextColor={colors.textMuted}
+              />
+              <View style={homeStyles.editButtons}>
+                <TouchableOpacity onPress={handleSaveEdit} activeOpacity={0.8}>
+                  <LinearGradient
+                    colors={colors.gradients.success}
+                    style={homeStyles.editButton}
+                  >
+                    <Ionicons name="checkmark" size={16} color="#fff" />
+                    <Text style={homeStyles.editButtonText}>Save</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleCancelEdit}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={colors.gradients.muted}
+                    style={homeStyles.editButton}
+                  >
+                    <Ionicons name="close" size={16} color="#fff" />
+                    <Text style={homeStyles.editButtonText}>Cancel</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={homeStyles.todoTextContainer}>
+              <Text
+                style={[
+                  homeStyles.todoText,
+                  item.isComplete && {
+                    textDecorationLine: "line-through",
+                    color: colors.textMuted,
+                    opacity: 0.6,
+                  },
+                ]}
+              >
+                {item.text}
+              </Text>
+
+              <View style={homeStyles.todoActions}>
+                <TouchableOpacity
+                  onPress={() => handleEditTodo(item)}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={colors.gradients.warning}
+                    style={homeStyles.actionButton}
+                  >
+                    <Ionicons name="pencil" size={14} color="#fff" />
+                  </LinearGradient>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleDeleteTodo(item._id)}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={colors.gradients.danger}
+                    style={homeStyles.actionButton}
+                  >
+                    <Ionicons name="trash" size={14} color="#fff" />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </LinearGradient>
+      </Animated.View>
+    );
+  };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <View style={styles.container}>
-        {/* {notes.map((note) => (
-          <NoteItem key={note.id} title={note.title} />
-        ))} */}
+    <LinearGradient
+      colors={colors.gradients.background}
+      style={homeStyles.container}
+    >
+      <SafeAreaView style={homeStyles.safeArea}>
+        <Header />
 
-        <Title text="My Notes" />
-
-        <TextInput
-          placeholder="Add a new note"
-          placeholderTextColor={colors.textMuted}
-          value={text}
-          onChangeText={setText}
-          style={styles.input}
-        />
-
-        <TouchableOpacity style={styles.button} onPress={addNote}>
-          <Text style={styles.buttonText}>Add Note</Text>
-        </TouchableOpacity>
-
-        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 16 }}>
-          <TouchableOpacity onPress={() => {
-            if (sortType === "date") {
-              setSortType("alphabet");
-            } else {
-              setSortType("date");
-            }
-          } } style={styles.sortButton}>
-            <Text style={styles.buttonTextSort}>
-              Sort by: {sortType === "date" ? "Date" : "Alphabet"}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => setIsAscending(!isAscending)} style={styles.sortButton}>
-            <Text style={styles.buttonTextSort}>
-              {isAscending ? "↑" : "↓"}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <TodoInput />
 
         <FlatList
-          showsVerticalScrollIndicator={false}
-          data={sortedNotes()}
-          keyExtractor={(note) => note.id.toString()}
-          renderItem={({ item }) => (
-            <NoteItem title={item.title} date={item.createdAt} onDelete={() => deleteNote(item.id)} onEdit={(newTitle) => editNote(item.id, newTitle)} />
-          )}
+          data={todos || []}
+          renderItem={renderTodoItem}
+          keyExtractor={(item) => item._id}
+          style={homeStyles.todoList}
+          contentContainerStyle={homeStyles.todoListContent}
+          ListEmptyComponent={<EmptyState />}
+          // showsVerticalScrollIndicator={false}
         />
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
-
-const createStyles = (colors: ColorScheme) =>
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      padding: 16,
-      backgroundColor: colors.bg,
-    },
-    input: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: 10,
-      borderRadius: 6,
-      marginBottom: 10,
-      color: colors.text,
-      
-    },
-    button: {
-      backgroundColor: colors.primary,
-      padding: 10,
-      borderRadius: 6,
-      marginBottom: 10,
-    },
-    buttonText: {
-      color: colors.surface,
-      textAlign: "center",
-      fontWeight: "bold",
-    },
-    note: {
-      padding: 10,
-      backgroundColor: colors.surface,
-      color: colors.text,
-      marginBottom: 6,
-      borderRadius: 6,
-    },
-    sortButton: {
-      padding: 10,
-      borderRadius: 8,
-      alignItems: "center",
-    },
-    buttonTextSort: {
-      color: colors.primary,
-      fontWeight: "600",
-    },
-  });

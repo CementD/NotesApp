@@ -41,8 +41,8 @@ const lightColors: ColorScheme = {
   danger: "#EF4444",
   shadow: "rgba(0, 0, 0, 0.05)",
   gradients: {
-    background: ["#F9FAFB", "#F3F4F6"],
-    surface: ["#FFFFFF", "#F9FAFB"],
+    background: ["#F9FAFB", "#2964dc"],
+    surface: ["#FFFFFF", "#25496d"],
     primary: ["#4F46E5", "#4338CA"],
     success: ["#10B981", "#059669"],
     warning: ["#F59E0B", "#D97706"],

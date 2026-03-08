@@ -1,46 +1,51 @@
-import useTheme, { ColorScheme } from "@/hooks/useTheme";
-import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
+import { createSettingsStyles } from "@/assets/styles/settings.styles";
+import DangerZone from "@/components/DangerZone";
+import Preferences from "@/components/Preferences";
+import ProgressStats from "@/components/ProgressStats";
+import useTheme from "@/hooks/useTheme";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+
+import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function SettingsScreen() {
-  const { colors, isDarkMode, toggleDarkMode } = useTheme();
-  const styles = createStyles(colors);
+const SettingsScreen = () => {
+  const { colors } = useTheme();
+
+  const settingsStyles = createSettingsStyles(colors);
+
+  // TODO: Add settings functionality
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <View style={styles.container}>
-        <Text style={styles.text}>
-          Theme: {isDarkMode ? "Dark" : "Light"}
-        </Text>
+    <LinearGradient
+      colors={colors.gradients.background}
+      style={settingsStyles.container}
+    >
+      <SafeAreaView style={settingsStyles.safeArea}>
+        {/* HEADER */}
+        <View style={settingsStyles.header}>
+          <View style={settingsStyles.titleContainer}>
+            <LinearGradient
+              colors={colors.gradients.primary}
+              style={settingsStyles.iconContainer}
+            >
+              <Ionicons name="settings" size={28} color="#ffffff" />
+            </LinearGradient>
+            <Text style={settingsStyles.title}>Settings</Text>
+          </View>
+        </View>
 
-        <TouchableOpacity onPress={toggleDarkMode} style={styles.button}>
-          <Text style={styles.buttonText}>Toggle Theme</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+        <ScrollView
+          style={settingsStyles.scrollView}
+          contentContainerStyle={settingsStyles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <ProgressStats />
+          <Preferences />
+          <DangerZone />
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
-}
-
-const createStyles = (colors: ColorScheme) =>
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      padding: 16,
-      backgroundColor: colors.bg,
-    },
-    text: {
-      color: colors.text,
-      fontSize: 18,
-      marginBottom: 12,
-    },
-    button: {
-      backgroundColor: colors.primary,
-      padding: 10,
-      borderRadius: 6,
-    },
-    buttonText: {
-      color: colors.surface,
-      textAlign: "center",
-      fontWeight: "bold",
-    },
-  });
+};
+export default SettingsScreen;
